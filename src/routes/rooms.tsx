@@ -3,7 +3,8 @@ import { createFileRoute } from '@tanstack/react-router'
 import { z } from 'zod'
 import { Copy, KeyRound, Lock, MapPin, Plus, Search, Share2, Swords, Users, AlertTriangle, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
-
+import { onValue, ref, set, push } from 'firebase/database'
+import { db } from '@/lib/firebase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -40,6 +41,19 @@ function RoomsPage() {
   const search = Route.useSearch()
   const navigate = Route.useNavigate()
   const [rooms, setRooms] = useState<Room[]>(ROOMS)
+  useEffect(() => {
+  const roomsRef = ref(db, 'rooms')
+
+  const unsubscribe = onValue(roomsRef, (snapshot) => {
+    const data = snapshot.val()
+
+    if (data) {
+      setRooms(Object.values(data) as Room[])
+    }
+  })
+
+  return unsubscribe
+}, [])
   const [tab, setTab] = useState(search.create ? 'create' : search.code ? 'join' : 'browse')
   const [created, setCreated] = useState<Room | null>(null)
 
@@ -74,13 +88,19 @@ function RoomsPage() {
             <BrowseRooms rooms={rooms} initialMode={search.mode} />
           </TabsContent>
           <TabsContent value="create" className="mt-6">
-            <CreateRoomForm
-              onCreate={(room) => {
-                setRooms((r) => [room, ...r])
-                setCreated(room)
-              }}
-            />
-          </TabsContent>
+  <CreateRoomForm
+    onCreate={async (room) => {
+      try {
+        const newRoomRef = push(ref(db, 'rooms'))
+        await set(newRoomRef, room)
+        setCreated(room)
+        toast.success('Room saved successfully!')
+      } catch (error) {
+        toast.error('Could not save room to Firebase')
+      }
+    }}
+  />
+</TabsContent>
           <TabsContent value="join" className="mt-6">
             <JoinRoom
               rooms={rooms}
